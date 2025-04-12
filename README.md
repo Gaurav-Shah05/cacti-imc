@@ -34,13 +34,13 @@ CACTI is an analytical tool that takes a set of cache/memory parameters as input
   - NEW design
   - DAC (Dynamic Adaptive Computing)
   - CRAM (Computational RAM)
-- Neural network computation modeling
+- Neural network computation modeling with various memory mapping strategies
 
 ## Setup
 
 ### Prerequisites
 - C++ compiler (GCC recommended)
-- Python 3.6+ with numpy, pandas, and matplotlib
+- Python 3.6+ with numpy, pandas, matplotlib, and json
 - Make
 - gcc-multilib & g++-multilib (needed if you're machine is 64-bit. these libraries required to cross-compile the Tool).
 
@@ -108,24 +108,78 @@ Example configuration with IMC parameters:
 
 ## Running Batch Simulations
 
+### Using Python Scripts
+
+The repository includes Python scripts to automate running multiple simulations:
+
+1. `Python_File_Himanshu.py`: Runs simulations for different adder types and array configurations
+
+```bash
+python Python_File_Himanshu.py
+```
+
+2. Jupyter notebooks (`bit_parallel.ipynb`, `bit_serial.ipynb`): Analyze and visualize results
+
+## Neural Network Model Wrapper
+
+The enhanced neural wrapper provides comprehensive analysis for different neural network architectures, including ResNet and Transformers.
+
 ### Using the Neural Wrapper
 
 ```bash
-./neural_wrapper.py --input_size 56 --kernel_size 3 --input_channels 64 --output_channels 64
+python neural_wrapper.py --model resnet --input_size 56 --kernel_size 3 --input_channels 64 --output_channels 64 --mapping weight_stationary
 ```
 
-### Parameters:
-- `--input_size`: Input feature map size (default: 56)
-- `--kernel_size`: Kernel size (default: 3)
-- `--input_channels`: Number of input channels (default: 64)
-- `--output_channels`: Number of output channels (default: 64)
-- `--output_dir`: Output directory for results (default: NN_Results)
+```bash
+python neural_wrapper.py --model transformer --seq_len 512 --hidden_size 768 --num_heads 12
+```
 
-### Output:
+### Neural Wrapper Parameters:
+- `--model`: Neural network model to analyze (resnet, transformer)
+- `--input_size`: Input feature map size for ResNet (default: 56)
+- `--kernel_size`: Kernel size for ResNet (default: 3)
+- `--input_channels`: Number of input channels for ResNet (default: 64)
+- `--output_channels`: Number of output channels for ResNet (default: 64)
+- `--seq_len`: Sequence length for transformer models (default: 512)
+- `--hidden_size`: Hidden dimension for transformer models (default: 768)
+- `--num_heads`: Number of attention heads for transformer models (default: 12)
+- `--mapping`: Memory mapping strategy (weight_stationary, output_stationary, input_stationary)
+- `--output_dir`: Output directory for results (default: NN_Results)
+- `--bit_precision`: Bit precision for calculations (default: 8)
+
+### Neural Wrapper Features:
+The neural wrapper now includes:
+
+1. **Workload-specific analysis**
+   - Support for both ResNet and Transformer models
+   - Detailed performance metrics calculation
+   - Layer-by-layer analysis
+
+2. **Automatic recommendation system**
+   - Finds optimal configurations for throughput, energy, and latency
+   - Generates human-readable recommendation files
+   - Provides JSON output for programmatic use
+
+3. **Memory mapping optimization**
+   - Supports weight stationary, output stationary, and input stationary mappings
+   - Calculates data reuse factors for each strategy
+   - Analyzes impact of different mapping strategies on performance
+
+4. **Comprehensive metrics**
+   - Throughput (GOPS)
+   - Energy efficiency (GOPS/W)
+   - Memory access patterns
+   - Total execution time
+   - Area efficiency
+
+### Output Files:
 The neural wrapper creates:
 - A directory structure organized by operation type, adder type, and sense amplifier
 - CSV files with detailed results
-- Plots comparing performance and energy efficiency across designs
+- JSON files with optimization recommendations
+- Human-readable recommendation files (.txt)
+- Plots comparing performance metrics across configurations
+- Memory mapping strategy comparisons
 
 ## Understanding Results
 
@@ -142,6 +196,14 @@ For IMC operations, additional metrics include:
 - Energy per computation (nJ)
 - Breakdown of energy consumption across components
 
+For neural network analysis, additional metrics include:
+- Throughput (GOPS)
+- Energy efficiency (GOPS/W)
+- Total MAC operations
+- Memory access patterns and counts
+- Total execution time (ns)
+- Total energy consumption (nJ)
+
 ## Example Workflow
 
 1. **Basic test**:
@@ -155,18 +217,32 @@ For IMC operations, additional metrics include:
    ./cacti -infile cache_bs_bp.cfg
    ```
 
-3. **Neural network analysis**:
+3. **Large-scale exploration**:
    ```bash
-   ./neural_wrapper.py --input_size 56 --kernel_size 3
+   python Python_File_Himanshu.py
    ```
 
-4. **Results analysis**: Open Jupyter notebooks like `BS_vs_BP_SAs.ipynb` to visualize and analyze results
+4. **ResNet analysis**:
+   ```bash
+   python neural_wrapper.py --model resnet --input_size 56 --kernel_size 3 --mapping weight_stationary
+   ```
+
+5. **Transformer analysis**:
+   ```bash
+   python neural_wrapper.py --model transformer --seq_len 512 --hidden_size 768 --num_heads 12
+   ```
+
+6. **Results analysis**: 
+   - Review generated recommendation files in the `NN_Results/RESULTS_CSV/` directory
+   - Examine throughput and energy efficiency plots
+   - Compare memory mapping strategies using the generated comparison plots
 
 ## Directory Structure
 
 - `*.cc`, `*.h`: Source code files
 - `*.cfg`: Configuration files
 - `Results/`: Directory containing simulation results
+- `NN_Results/`: Directory containing neural network analysis results
 - `*.ipynb`: Jupyter notebooks for analysis
 - Executables:
   - `cacti`: Main CACTI binary
