@@ -1,0 +1,41 @@
+# Compiled object files
+*.o
+*.lo
+*.slo
+*.obj
+
+# Precompiled headers
+*.gch
+*.pch
+
+# Compiled dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Executables
+*.exe
+*.out
+a.out
+cacti
+
+# Editor temporary files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+
+# Results directories (can be regenerated)
+Results*/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+EOF < /dev/null
