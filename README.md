@@ -101,20 +101,6 @@ Example configuration with IMC parameters:
 -Nbits 8
 ```
 
-## Running Batch Simulations
-
-### Using Python Scripts
-
-The repository includes Python scripts to automate running multiple simulations:
-
-1. `Python_File_Himanshu.py`: Runs simulations for different adder types and array configurations
-
-```bash
-python Python_File_Himanshu.py
-```
-
-2. Jupyter notebooks (`bit_parallel.ipynb`, `bit_serial.ipynb`): Analyze and visualize results
-
 ## Neural Network Model Wrapper
 
 The enhanced neural wrapper provides comprehensive analysis for different neural network architectures, including ResNet and Transformers, with advanced memory modeling capabilities to provide more realistic design space exploration.
@@ -145,7 +131,7 @@ python neural_wrapper.py --model transformer --seq_len 512 --hidden_size 768 --n
 - `--no_force_config`: Allow CACTI to determine optimal cache organization instead of forcing specific parameters. The selected configuration can be viewed in the output files under the respective operation type, adder type, and sense amplifier directories (e.g., `NN_Results_*/bit_parallel/new/CESA/array_256x256.txt`), which show values like Best Ndwl, Ndbl, Nspd, Ndcm, etc.
 
 ### Neural Wrapper Features:
-The neural wrapper now includes:
+The neural wrapper includes:
 
 1. **Workload-specific analysis**
    - Support for both ResNet and Transformer models
@@ -180,7 +166,7 @@ The neural wrapper creates:
 - A directory structure organized by operation type, adder type, and sense amplifier
 - CSV files with detailed results
 - JSON files with optimization recommendations
-- Human-readable recommendation files (.txt)
+- recommendation files (.txt)
 - Plots comparing performance metrics across configurations
 - Memory mapping strategy comparisons
 
