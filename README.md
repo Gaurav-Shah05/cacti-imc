@@ -255,8 +255,8 @@ This software is based on CACTI 6.5, which was developed by HP and is available 
 ## Contact
 
 For questions or contributions, please contact:
-
-[Your Contact Information]
+Gaurav Shah
+gauravgaurav@iitgn.ac.in
 
 ## References
 
