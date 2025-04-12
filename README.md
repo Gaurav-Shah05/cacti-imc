@@ -42,6 +42,7 @@ CACTI is an analytical tool that takes a set of cache/memory parameters as input
 - C++ compiler (GCC recommended)
 - Python 3.6+ with numpy, pandas, and matplotlib
 - Make
+- gcc-multilib & g++-multilib (needed if you're machine is 64-bit. these libraries required to cross-compile the Tool).
 
 ### Installation
 
@@ -56,26 +57,30 @@ CACTI is an analytical tool that takes a set of cache/memory parameters as input
    make clean
    make
    ```
+3. Install gcc-multilib & g++-multilib:
+  ```bash
+  sudo apt-get install -y gcc-multilib
+  ```
 
-3. Verify the installation:
+4. Verify the installation:
    ```bash
-   ./cacti -infile cache.cfg
+   ./cacti -infile cache_imc.cfg
    ```
 
 ## Basic Usage
 
 ### Running a Basic Simulation
 
-1. Define your cache configuration in `cache.cfg`
+1. Define your cache configuration in `cache_imc.cfg`
 2. Run CACTI:
    ```bash
-   ./cacti -infile cache.cfg
+   ./cacti -infile cache_imc.cfg
    ```
 3. Review the results in the output
 
 ### Configuration Options
 
-The configuration file (`cache.cfg`) allows you to specify various parameters:
+The configuration file (`cache_imc.cfg`) allows you to specify various parameters:
 
 - Cache size (bytes)
 - Block/line size (bytes)
@@ -102,22 +107,6 @@ Example configuration with IMC parameters:
 ```
 
 ## Running Batch Simulations
-
-### Using Python Scripts
-
-The repository includes Python scripts to automate running multiple simulations:
-
-1. `Python_File_Himanshu.py`: Runs simulations for different adder types and array configurations
-
-```bash
-python Python_File_Himanshu.py
-```
-
-2. Jupyter notebooks (`bit_parallel.ipynb`, `bit_serial.ipynb`): Analyze and visualize results
-
-## Neural Network Model Wrapper
-
-We've added a neural wrapper that runs CACTI for neural network computations, particularly ResNet convolution layers.
 
 ### Using the Neural Wrapper
 
@@ -157,7 +146,7 @@ For IMC operations, additional metrics include:
 
 1. **Basic test**:
    ```bash
-   ./cacti -infile cache.cfg
+   ./cacti -infile cache_imc.cfg
    ```
 
 2. **IMC exploration**:
@@ -166,17 +155,12 @@ For IMC operations, additional metrics include:
    ./cacti -infile cache_bs_bp.cfg
    ```
 
-3. **Large-scale exploration**:
-   ```bash
-   python Python_File_Himanshu.py
-   ```
-
-4. **Neural network analysis**:
+3. **Neural network analysis**:
    ```bash
    ./neural_wrapper.py --input_size 56 --kernel_size 3
    ```
 
-5. **Results analysis**: Open Jupyter notebooks like `BS_vs_BP_SAs.ipynb` to visualize and analyze results
+4. **Results analysis**: Open Jupyter notebooks like `BS_vs_BP_SAs.ipynb` to visualize and analyze results
 
 ## Directory Structure
 
@@ -195,8 +179,8 @@ This software is based on CACTI 6.5, which was developed by HP and is available 
 ## Contact
 
 For questions or contributions, please contact:
-
-[Your Contact Information]
+Gaurav Shah
+gauravgaurav@iitgn.ac.in
 
 ## References
 
