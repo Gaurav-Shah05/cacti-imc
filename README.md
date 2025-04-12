@@ -42,7 +42,6 @@ CACTI is an analytical tool that takes a set of cache/memory parameters as input
 - C++ compiler (GCC recommended)
 - Python 3.6+ with numpy, pandas, matplotlib, and json
 - Make
-- gcc-multilib & g++-multilib (needed if you're machine is 64-bit. these libraries required to cross-compile the Tool).
 
 ### Installation
 
@@ -57,30 +56,26 @@ CACTI is an analytical tool that takes a set of cache/memory parameters as input
    make clean
    make
    ```
-3. Install gcc-multilib & g++-multilib:
-  ```bash
-  sudo apt-get install -y gcc-multilib
-  ```
 
-4. Verify the installation:
+3. Verify the installation:
    ```bash
-   ./cacti -infile cache_imc.cfg
+   ./cacti -infile cache.cfg
    ```
 
 ## Basic Usage
 
 ### Running a Basic Simulation
 
-1. Define your cache configuration in `cache_imc.cfg`
+1. Define your cache configuration in `cache.cfg`
 2. Run CACTI:
    ```bash
-   ./cacti -infile cache_imc.cfg
+   ./cacti -infile cache.cfg
    ```
 3. Review the results in the output
 
 ### Configuration Options
 
-The configuration file (`cache_imc.cfg`) allows you to specify various parameters:
+The configuration file (`cache.cfg`) allows you to specify various parameters:
 
 - Cache size (bytes)
 - Block/line size (bytes)
@@ -122,7 +117,7 @@ python Python_File_Himanshu.py
 
 ## Neural Network Model Wrapper
 
-The enhanced neural wrapper provides comprehensive analysis for different neural network architectures, including ResNet and Transformers.
+The enhanced neural wrapper provides comprehensive analysis for different neural network architectures, including ResNet and Transformers, with advanced memory modeling capabilities to provide more realistic design space exploration.
 
 ### Using the Neural Wrapper
 
@@ -146,6 +141,8 @@ python neural_wrapper.py --model transformer --seq_len 512 --hidden_size 768 --n
 - `--mapping`: Memory mapping strategy (weight_stationary, output_stationary, input_stationary)
 - `--output_dir`: Output directory for results (default: NN_Results)
 - `--bit_precision`: Bit precision for calculations (default: 8)
+- `--fixed_cache_size`: Fixed cache size in bytes (e.g., 65536 for 64KB) instead of scaling with array dimensions
+- `--no_force_config`: Allow CACTI to determine optimal cache organization instead of forcing specific parameters. The selected configuration can be viewed in the output files under the respective operation type, adder type, and sense amplifier directories (e.g., `NN_Results_*/bit_parallel/new/CESA/array_256x256.txt`), which show values like Best Ndwl, Ndbl, Nspd, Ndcm, etc.
 
 ### Neural Wrapper Features:
 The neural wrapper now includes:
@@ -171,6 +168,12 @@ The neural wrapper now includes:
    - Memory access patterns
    - Total execution time
    - Area efficiency
+
+5. **Enhanced memory modeling**
+   - Option to use fixed cache size across different array organizations
+   - Support for CACTI-optimized memory organization (automatically determines optimal Ndwl, Ndbl, Nspd, Ndcm values)
+   - Improved error handling for incompatible configurations
+   - Memory organization details are visible in output files showing parameters like "Best Ndwl", "Best Ndbl", etc.
 
 ### Output Files:
 The neural wrapper creates:
@@ -208,7 +211,7 @@ For neural network analysis, additional metrics include:
 
 1. **Basic test**:
    ```bash
-   ./cacti -infile cache_imc.cfg
+   ./cacti -infile cache.cfg
    ```
 
 2. **IMC exploration**:
@@ -222,20 +225,31 @@ For neural network analysis, additional metrics include:
    python Python_File_Himanshu.py
    ```
 
-4. **ResNet analysis**:
+4. **Default ResNet analysis**:
    ```bash
-   python neural_wrapper.py --model resnet --input_size 56 --kernel_size 3 --mapping weight_stationary
+   python neural_wrapper.py --model resnet --input_size 56 --kernel_size 3 --mapping input_stationary
    ```
 
-5. **Transformer analysis**:
+5. **ResNet with fixed cache size**:
+   ```bash
+   python neural_wrapper.py --model resnet --input_size 56 --kernel_size 3 --mapping input_stationary --fixed_cache_size 65536
+   ```
+
+6. **ResNet with fixed cache size and auto-organization**:
+   ```bash
+   python neural_wrapper.py --model resnet --input_size 56 --kernel_size 3 --mapping input_stationary --fixed_cache_size 65536 --no_force_config
+   ```
+
+7. **Transformer analysis**:
    ```bash
    python neural_wrapper.py --model transformer --seq_len 512 --hidden_size 768 --num_heads 12
    ```
 
-6. **Results analysis**: 
+8. **Results analysis**: 
    - Review generated recommendation files in the `NN_Results/RESULTS_CSV/` directory
    - Examine throughput and energy efficiency plots
    - Compare memory mapping strategies using the generated comparison plots
+   - For deeper insights, see the `neural_wrapper_improvements.md` file
 
 ## Directory Structure
 
@@ -255,8 +269,8 @@ This software is based on CACTI 6.5, which was developed by HP and is available 
 ## Contact
 
 For questions or contributions, please contact:
-Gaurav Shah
-gauravgaurav@iitgn.ac.in
+
+[Your Contact Information]
 
 ## References
 

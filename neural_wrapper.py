@@ -31,6 +31,10 @@ class CACTIWrapper:
         # Memory mapping strategies
         self.mapping_strategies = ["weight_stationary", "output_stationary", "input_stationary"]
         self.current_strategy = "weight_stationary"  # Default strategy
+        
+        # Cache configuration
+        self.fixed_cache_size = None  # If set, use this fixed cache size in bytes, otherwise scale with array size
+        self.force_cache_config = True  # If True, force specific cache organization parameters (default=True for backward compatibility)
 
     def setup_directories(self):
         """Set up the output directories for results"""
@@ -60,8 +64,11 @@ class CACTIWrapper:
         
         with open(file_path, 'w') as file:
             for line in lines:
+                # Handle cache size - use fixed size if set, otherwise use scaled size
                 if "-size (bytes)" in line:
-                    file.write(f"-size (bytes) {params['cache_size']}\n")
+                    cache_size = self.fixed_cache_size if self.fixed_cache_size is not None else params['cache_size']
+                    file.write(f"-size (bytes) {cache_size}\n")
+                # Handle other standard parameters
                 elif "-block size (bytes)" in line:
                     file.write(f"-block size (bytes) {params['block_size']}\n")
                 elif "-output/input bus width" in line:
@@ -74,6 +81,9 @@ class CACTIWrapper:
                     file.write(f"-Sense AMP- \"{params['sense_amp']}\"\n")
                 elif "-technology (u)" in line:
                     file.write(f"-technology (u) {self.tech}\n")
+                # Handle force cache config flag
+                elif "-Force cache config" in line:
+                    file.write(f"-Force cache config - \"{str(self.force_cache_config).lower()}\"\n")
                 else:
                     file.write(line)
     
@@ -277,23 +287,31 @@ class CACTIWrapper:
             # Extract results from output file
             result = self.extract_results(output_file, config)
             
-            # Calculate layer-specific performance metrics
-            result = self.calculate_layer_performance(result)
-            
-            results.append(result)
+            # If valid results were obtained
+            if result.get('access_time_ns') is not None:
+                # Calculate layer-specific performance metrics
+                result = self.calculate_layer_performance(result)
+                results.append(result)
+            else:
+                print(f"Warning: Invalid results for configuration {i+1}, skipping...")
         
         # Cleanup temp file
         os.remove(temp_config)
         
-        # Save results to CSV
-        results_df = pd.DataFrame(results)
-        results_csv_path = os.path.join(self.results_csv_dir, f"{layer_type}_results.csv")
-        results_df.to_csv(results_csv_path, index=False)
+        # Create DataFrame from results
+        results_df = pd.DataFrame(results) if results else pd.DataFrame()
         
-        # Generate summary plots
-        self.generate_summary_plots(results_df, layer_type)
+        # Save results to CSV if we have any
+        if not results_df.empty:
+            results_csv_path = os.path.join(self.results_csv_dir, f"{layer_type}_results.csv")
+            results_df.to_csv(results_csv_path, index=False)
+            
+            # Generate summary plots if we have valid results
+            self.generate_summary_plots(results_df, layer_type)
+        else:
+            print("Warning: No valid results obtained from any configuration.")
         
-        # Find the best configuration
+        # Find the best configuration (handles empty dataframes)
         best_config = self.find_optimal_configuration(results_df)
         
         # Save recommendations
@@ -507,93 +525,154 @@ class CACTIWrapper:
         """
         best_configs = {}
         
-        # Best throughput configuration
-        throughput_idx = results_df['throughput_gops'].idxmax()
-        best_configs['throughput'] = results_df.iloc[throughput_idx].to_dict()
+        # Check if results_df is empty
+        if results_df.empty:
+            print("Warning: No valid results found for the given configuration.")
+            # Return empty recommendations
+            return {
+                'overall_best': {
+                    'metric': 'none',
+                    'config': {
+                        'array_size': 'N/A',
+                        'operation': 'N/A',
+                        'adder_type': 'N/A',
+                        'sense_amp': 'N/A',
+                        'mapping_strategy': 'N/A',
+                        'throughput_gops': 0,
+                        'energy_efficiency_gops_per_w': 0
+                    }
+                },
+                'energy_best': {
+                    'metric': 'none',
+                    'config': {
+                        'array_size': 'N/A',
+                        'operation': 'N/A',
+                        'adder_type': 'N/A',
+                        'sense_amp': 'N/A',
+                        'mapping_strategy': 'N/A',
+                        'throughput_gops': 0,
+                        'energy_efficiency_gops_per_w': 0
+                    }
+                },
+                'latency_best': {
+                    'metric': 'none',
+                    'config': {
+                        'array_size': 'N/A',
+                        'operation': 'N/A',
+                        'adder_type': 'N/A',
+                        'sense_amp': 'N/A',
+                        'mapping_strategy': 'N/A',
+                        'total_time_ns': 0,
+                        'throughput_gops': 0
+                    }
+                }
+            }
         
-        # Best energy efficiency configuration
-        energy_eff_idx = results_df['energy_efficiency_gops_per_w'].idxmax()
-        best_configs['energy_efficiency'] = results_df.iloc[energy_eff_idx].to_dict()
-        
-        # Best latency configuration (lowest total time)
-        latency_idx = results_df['total_time_ns'].idxmin()
-        best_configs['latency'] = results_df.iloc[latency_idx].to_dict()
-        
-        # Best area efficiency (throughput per area)
-        results_df['area_efficiency'] = results_df['throughput_gops'] / (results_df['rows'] * results_df['cols'])
-        area_eff_idx = results_df['area_efficiency'].idxmax()
-        best_configs['area_efficiency'] = results_df.iloc[area_eff_idx].to_dict()
-        
-        # Find best configurations for each operation type and sense amp
-        for operation in self.operations:
-            op_df = results_df[results_df['operation'] == operation]
+        # Check if we have any results
+        if not results_df.empty:
+            # Best throughput configuration
+            throughput_idx = results_df['throughput_gops'].idxmax()
+            best_configs['throughput'] = results_df.iloc[throughput_idx].to_dict()
             
-            if not op_df.empty:
-                # Best throughput
-                op_throughput_idx = op_df['throughput_gops'].idxmax()
-                best_configs[f'{operation}_throughput'] = op_df.iloc[op_throughput_idx].to_dict()
-                
-                # Best energy efficiency
-                op_energy_eff_idx = op_df['energy_efficiency_gops_per_w'].idxmax()
-                best_configs[f'{operation}_energy_efficiency'] = op_df.iloc[op_energy_eff_idx].to_dict()
-                
-                # For each sense amp
-                for sense_amp in self.sense_amps:
-                    op_sa_df = op_df[op_df['sense_amp'] == sense_amp]
-                    
-                    if not op_sa_df.empty:
-                        # Best throughput
-                        op_sa_throughput_idx = op_sa_df['throughput_gops'].idxmax()
-                        best_configs[f'{operation}_{sense_amp}_throughput'] = op_sa_df.iloc[op_sa_throughput_idx].to_dict()
-                        
-                        # Best energy efficiency
-                        op_sa_energy_eff_idx = op_sa_df['energy_efficiency_gops_per_w'].idxmax()
-                        best_configs[f'{operation}_{sense_amp}_energy_efficiency'] = op_sa_df.iloc[op_sa_energy_eff_idx].to_dict()
+            # Best energy efficiency configuration
+            energy_eff_idx = results_df['energy_efficiency_gops_per_w'].idxmax()
+            best_configs['energy_efficiency'] = results_df.iloc[energy_eff_idx].to_dict()
+            
+            # Best latency configuration (lowest total time)
+            latency_idx = results_df['total_time_ns'].idxmin()
+            best_configs['latency'] = results_df.iloc[latency_idx].to_dict()
+            
+            # Best area efficiency (throughput per area)
+            results_df['area_efficiency'] = results_df['throughput_gops'] / (results_df['rows'] * results_df['cols'])
+            area_eff_idx = results_df['area_efficiency'].idxmax()
+            best_configs['area_efficiency'] = results_df.iloc[area_eff_idx].to_dict()
+        
+        # Skip detailed breakdowns if the dataframe is empty - they're not needed for the basic recommendations
         
         # Prepare a summarized version for recommendations
         recommended = {}
         
-        # Overall best
-        recommended['overall_best'] = {
-            'metric': 'throughput',
-            'config': {
-                'array_size': f"{best_configs['throughput']['rows']}x{best_configs['throughput']['cols']}",
-                'operation': best_configs['throughput']['operation'],
-                'adder_type': best_configs['throughput']['adder_type'],
-                'sense_amp': best_configs['throughput']['sense_amp'],
-                'mapping_strategy': best_configs['throughput']['mapping_strategy'],
-                'throughput_gops': best_configs['throughput']['throughput_gops'],
-                'energy_efficiency_gops_per_w': best_configs['throughput']['energy_efficiency_gops_per_w']
+        # If there are best configs, prepare them, otherwise use defaults from earlier
+        if 'throughput' in best_configs:
+            # Overall best
+            recommended['overall_best'] = {
+                'metric': 'throughput',
+                'config': {
+                    'array_size': f"{best_configs['throughput']['rows']}x{best_configs['throughput']['cols']}",
+                    'operation': best_configs['throughput']['operation'],
+                    'adder_type': best_configs['throughput']['adder_type'],
+                    'sense_amp': best_configs['throughput']['sense_amp'],
+                    'mapping_strategy': best_configs['throughput']['mapping_strategy'],
+                    'throughput_gops': best_configs['throughput']['throughput_gops'],
+                    'energy_efficiency_gops_per_w': best_configs['throughput']['energy_efficiency_gops_per_w']
+                }
             }
-        }
-        
-        # Best for energy efficiency
-        recommended['energy_best'] = {
-            'metric': 'energy_efficiency',
-            'config': {
-                'array_size': f"{best_configs['energy_efficiency']['rows']}x{best_configs['energy_efficiency']['cols']}",
-                'operation': best_configs['energy_efficiency']['operation'],
-                'adder_type': best_configs['energy_efficiency']['adder_type'],
-                'sense_amp': best_configs['energy_efficiency']['sense_amp'],
-                'mapping_strategy': best_configs['energy_efficiency']['mapping_strategy'],
-                'throughput_gops': best_configs['energy_efficiency']['throughput_gops'],
-                'energy_efficiency_gops_per_w': best_configs['energy_efficiency']['energy_efficiency_gops_per_w']
+            
+            # Best for energy efficiency
+            recommended['energy_best'] = {
+                'metric': 'energy_efficiency',
+                'config': {
+                    'array_size': f"{best_configs['energy_efficiency']['rows']}x{best_configs['energy_efficiency']['cols']}",
+                    'operation': best_configs['energy_efficiency']['operation'],
+                    'adder_type': best_configs['energy_efficiency']['adder_type'],
+                    'sense_amp': best_configs['energy_efficiency']['sense_amp'],
+                    'mapping_strategy': best_configs['energy_efficiency']['mapping_strategy'],
+                    'throughput_gops': best_configs['energy_efficiency']['throughput_gops'],
+                    'energy_efficiency_gops_per_w': best_configs['energy_efficiency']['energy_efficiency_gops_per_w']
+                }
             }
-        }
-        
-        # Best for latency
-        recommended['latency_best'] = {
-            'metric': 'latency',
-            'config': {
-                'array_size': f"{best_configs['latency']['rows']}x{best_configs['latency']['cols']}",
-                'operation': best_configs['latency']['operation'],
-                'adder_type': best_configs['latency']['adder_type'],
-                'sense_amp': best_configs['latency']['sense_amp'],
-                'mapping_strategy': best_configs['latency']['mapping_strategy'],
-                'total_time_ns': best_configs['latency']['total_time_ns'],
-                'throughput_gops': best_configs['latency']['throughput_gops']
+            
+            # Best for latency
+            recommended['latency_best'] = {
+                'metric': 'latency',
+                'config': {
+                    'array_size': f"{best_configs['latency']['rows']}x{best_configs['latency']['cols']}",
+                    'operation': best_configs['latency']['operation'],
+                    'adder_type': best_configs['latency']['adder_type'],
+                    'sense_amp': best_configs['latency']['sense_amp'],
+                    'mapping_strategy': best_configs['latency']['mapping_strategy'],
+                    'total_time_ns': best_configs['latency']['total_time_ns'],
+                    'throughput_gops': best_configs['latency']['throughput_gops']
+                }
             }
-        }
+        else:
+            # Return default values if no valid results found
+            recommended['overall_best'] = {
+                'metric': 'none',
+                'config': {
+                    'array_size': 'N/A',
+                    'operation': 'N/A',
+                    'adder_type': 'N/A',
+                    'sense_amp': 'N/A',
+                    'mapping_strategy': 'N/A',
+                    'throughput_gops': 0,
+                    'energy_efficiency_gops_per_w': 0
+                }
+            }
+            recommended['energy_best'] = {
+                'metric': 'none',
+                'config': {
+                    'array_size': 'N/A',
+                    'operation': 'N/A',
+                    'adder_type': 'N/A',
+                    'sense_amp': 'N/A',
+                    'mapping_strategy': 'N/A',
+                    'throughput_gops': 0,
+                    'energy_efficiency_gops_per_w': 0
+                }
+            }
+            recommended['latency_best'] = {
+                'metric': 'none',
+                'config': {
+                    'array_size': 'N/A',
+                    'operation': 'N/A',
+                    'adder_type': 'N/A',
+                    'sense_amp': 'N/A',
+                    'mapping_strategy': 'N/A',
+                    'total_time_ns': 0,
+                    'throughput_gops': 0
+                }
+            }
         
         return recommended
     
@@ -616,6 +695,16 @@ class CACTIWrapper:
         with open(txt_path, 'w') as f:
             f.write(f"Recommendations for {layer_type} layer\n")
             f.write("=" * 50 + "\n\n")
+            
+            # Check if we have valid results or if we're using the default "N/A" values
+            if recommended['overall_best']['config']['array_size'] == 'N/A':
+                f.write("NO VALID CONFIGURATIONS FOUND\n")
+                f.write("-" * 50 + "\n")
+                f.write("No valid configurations were found for the given parameters.\n")
+                f.write("This may be due to the combination of fixed cache size and array dimensions.\n")
+                f.write("Try adjusting the cache size or using different array dimensions.\n\n")
+                f.write("NOTE: When using a fixed cache size, not all array dimensions may be compatible.\n")
+                return
             
             # Overall best
             f.write("BEST OVERALL CONFIGURATION (THROUGHPUT-OPTIMIZED)\n")
@@ -658,12 +747,29 @@ class CACTIWrapper:
     
     def generate_summary_plots(self, results_df, layer_type):
         """Generate summary plots for the results"""
+        # Check if the DataFrame is empty
+        if results_df.empty:
+            print(f"Warning: No data available to generate plots for {layer_type}")
+            return
+            
+        # Create empty placeholder plots if there are no results
+        if len(results_df) == 0:
+            # Create placeholder plots with "No Data Available" message
+            for plot_type in ["throughput", "energy_efficiency", "mapping_impact"]:
+                plt.figure(figsize=(12, 6))
+                plt.text(0.5, 0.5, "No data available", ha='center', va='center', fontsize=20)
+                plt.title(f"{plot_type.replace('_', ' ').title()} - No Data Available")
+                plt.savefig(os.path.join(self.results_csv_dir, f"{layer_type}_{plot_type}.png"))
+                plt.close()
+            return
+        
         # Throughput vs Array Size plot
         plt.figure(figsize=(12, 6))
         for operation in self.operations:
             operation_df = results_df[results_df['operation'] == operation]
-            avg_throughput = operation_df.groupby('rows')['throughput_gops'].mean()
-            plt.plot(avg_throughput.index, avg_throughput.values, marker='o', label=operation)
+            if not operation_df.empty:
+                avg_throughput = operation_df.groupby('rows')['throughput_gops'].mean()
+                plt.plot(avg_throughput.index, avg_throughput.values, marker='o', label=operation)
         
         plt.title(f"Throughput vs Array Size ({layer_type})")
         plt.xlabel("Array Size")
@@ -678,8 +784,9 @@ class CACTIWrapper:
         plt.figure(figsize=(12, 6))
         for operation in self.operations:
             operation_df = results_df[results_df['operation'] == operation]
-            avg_energy_eff = operation_df.groupby('rows')['energy_efficiency_gops_per_w'].mean()
-            plt.plot(avg_energy_eff.index, avg_energy_eff.values, marker='o', label=operation)
+            if not operation_df.empty:
+                avg_energy_eff = operation_df.groupby('rows')['energy_efficiency_gops_per_w'].mean()
+                plt.plot(avg_energy_eff.index, avg_energy_eff.values, marker='o', label=operation)
         
         plt.title(f"Energy Efficiency vs Array Size ({layer_type})")
         plt.xlabel("Array Size")
@@ -691,12 +798,13 @@ class CACTIWrapper:
         plt.close()
         
         # Different memory mapping strategies comparison
-        if 'mapping_strategy' in results_df.columns:
+        if 'mapping_strategy' in results_df.columns and len(results_df['mapping_strategy'].unique()) > 0:
             plt.figure(figsize=(12, 6))
             for mapping in results_df['mapping_strategy'].unique():
                 mapping_df = results_df[results_df['mapping_strategy'] == mapping]
-                avg_throughput = mapping_df.groupby('rows')['throughput_gops'].mean()
-                plt.plot(avg_throughput.index, avg_throughput.values, marker='o', label=mapping)
+                if not mapping_df.empty:
+                    avg_throughput = mapping_df.groupby('rows')['throughput_gops'].mean()
+                    plt.plot(avg_throughput.index, avg_throughput.values, marker='o', label=mapping)
             
             plt.title(f"Impact of Memory Mapping Strategy on Throughput ({layer_type})")
             plt.xlabel("Array Size")
@@ -787,13 +895,43 @@ class CACTIWrapper:
         throughputs = []
         energy_efficiencies = []
         
+        has_valid_results = False
+        
         for i, (result_df, _) in enumerate(strategy_results):
-            # Average throughput and energy efficiency across array sizes
-            avg_throughput = result_df['throughput_gops'].mean()
-            avg_energy_eff = result_df['energy_efficiency_gops_per_w'].mean()
-            
+            # Check if this strategy has valid results
+            if not result_df.empty:
+                has_valid_results = True
+                # Average throughput and energy efficiency across array sizes
+                avg_throughput = result_df['throughput_gops'].mean()
+                avg_energy_eff = result_df['energy_efficiency_gops_per_w'].mean()
+            else:
+                # No valid results for this strategy
+                avg_throughput = 0
+                avg_energy_eff = 0
+                
             throughputs.append(avg_throughput)
             energy_efficiencies.append(avg_energy_eff)
+        
+        # Save comparison to file even if there are no valid results
+        comparison = {
+            'strategies': strategies,
+            'avg_throughput': throughputs,
+            'avg_energy_efficiency': energy_efficiencies,
+            'has_valid_results': has_valid_results
+        }
+        
+        json_path = os.path.join(self.results_csv_dir, f"{layer_type}_strategy_comparison.json")
+        with open(json_path, 'w') as f:
+            json.dump(comparison, f, indent=4)
+            
+        # If there are no valid results, create a placeholder plot
+        if not has_valid_results:
+            plt.figure(figsize=(12, 6))
+            plt.text(0.5, 0.5, "No valid data available for comparison", ha='center', va='center', fontsize=20)
+            plt.title(f"Strategy Comparison - No Valid Data")
+            plt.savefig(os.path.join(self.results_csv_dir, f"{layer_type}_strategy_comparison.png"))
+            plt.close()
+            return
         
         # Plot comparison
         plt.figure(figsize=(12, 6))
@@ -816,17 +954,6 @@ class CACTIWrapper:
         plt.tight_layout()
         plt.savefig(os.path.join(self.results_csv_dir, f"{layer_type}_strategy_comparison.png"))
         plt.close()
-        
-        # Save comparison to file
-        comparison = {
-            'strategies': strategies,
-            'avg_throughput': throughputs,
-            'avg_energy_efficiency': energy_efficiencies
-        }
-        
-        json_path = os.path.join(self.results_csv_dir, f"{layer_type}_strategy_comparison.json")
-        with open(json_path, 'w') as f:
-            json.dump(comparison, f, indent=4)
 
 def main():
     parser = argparse.ArgumentParser(description='CACTI Neural Network Analysis Tool')
@@ -842,11 +969,24 @@ def main():
     parser.add_argument('--output_dir', type=str, default='NN_Results', help='Output directory for results')
     parser.add_argument('--bit_precision', type=int, default=8, help='Bit precision for calculations (default: 8)')
     
+    # New arguments for cache configuration
+    parser.add_argument('--fixed_cache_size', type=int, help='Fixed cache size in bytes (e.g. 65536 for 64KB). If not specified, cache size will scale with array dimensions.')
+    parser.add_argument('--no_force_config', action='store_true', help='Allow CACTI to determine optimal cache organization instead of forcing specific parameters')
+    
     args = parser.parse_args()
     
     wrapper = CACTIWrapper(output_dir=args.output_dir)
     wrapper.bit_precision = args.bit_precision
     wrapper.current_strategy = args.mapping
+    
+    # Set up new configuration options
+    if args.fixed_cache_size is not None:
+        wrapper.fixed_cache_size = args.fixed_cache_size
+        print(f"Using fixed cache size: {args.fixed_cache_size} bytes")
+    
+    if args.no_force_config:
+        wrapper.force_cache_config = False
+        print("Allowing CACTI to determine optimal cache organization")
     
     if args.model.lower() == 'resnet':
         results, best_config = wrapper.run_resnet_analysis(
